@@ -1,0 +1,17 @@
+{
+  "eslint.format.enable": true,
+  "files.exclude": {
+    "**/node_modules": true,
+    "**/.DS_Store": true,
+    "**/*.js.map": true,
+    "**/*.js": {"when": "$(basename).ts"}
+  },
+  "cSpell.words": [
+    "Vuex",
+    "datetime",
+    "esnext",
+    "scripthost",
+    "subprojects",
+    "vuetify"
+  ]
+}
