@@ -60,10 +60,14 @@ export default class SudokuView extends Vue {
   private refreshHighlighting() {
     const indexes: IIndex[] = [];
     if (this.selectedHighliting != null) {
-      const valueIndexes = this.board?.getIndexes(this.selectedHighliting);
-      valueIndexes?.forEach(ind => {
-        indexes.push(...this._locationResolver.getAllIndexes(ind));
-      });
+      const selectedValue = this.selectedHighliting as number;
+      this.board?.cells.forEach(cr =>
+        cr.forEach(c => {
+          if (c.possibleValues.indexOf(selectedValue) < 0) {
+            indexes.push(c.index);
+          }
+        })
+      );
     }
     this.hightlightIndexes.splice(0, this.hightlightIndexes.length, ...indexes);
   }

@@ -4,35 +4,71 @@ import { IIndex, ILocationResolver } from "./LocationResolver";
 export interface ICell {
   readonly id: string;
   readonly index: IIndex;
-  value: number | null;
 
-  possibleValues: number[];
+  readonly possibleValues: number[];
+  value: number | null;
+}
+
+class Cell implements ICell {
+  private readonly _possibleValuesUsage: { [value: number]: number } = {};
+
+  public readonly id: string;
+  public readonly index: IIndex;
+  public readonly possibleValues: number[];
+
+  public value: number | null;
+
+  constructor(index: IIndex, initialPossibleValues: number[]) {
+    this.id = `_${index.r}_${index.c}`;
+    this.index = index;
+    this.possibleValues = [...initialPossibleValues];
+    this.value = null;
+
+    this.possibleValues.forEach(v => (this._possibleValuesUsage[v] = 0));
+  }
+
+  public updatePossibleValue(possibleValue: number, isAdding: boolean) {
+    const operationWeight = isAdding ? 1 : -1;
+    this._possibleValuesUsage[possibleValue] += operationWeight;
+    if (this._possibleValuesUsage[possibleValue] > 0) {
+      const valueIndex = this.possibleValues.indexOf(possibleValue);
+      if (valueIndex >= 0) {
+        this.possibleValues.splice(valueIndex, 1);
+      }
+    } else {
+      ArrayUtils.insertSorted(this.possibleValues, possibleValue);
+    }
+  }
 }
 
 export interface IBoard {
+  readonly locationResolver: ILocationResolver;
   readonly cells: ICell[][];
 
   setValue(index: IIndex, value: number | null): boolean;
   validate(index: IIndex, value: number): boolean;
-  getIndexes(value: number): IIndex[];
 }
 
 export class DefaultBoard implements IBoard {
-  private readonly _locationResolver: ILocationResolver;
-
-  public readonly cells: ICell[][] = [];
+  public readonly locationResolver: ILocationResolver;
+  public readonly _cells: Cell[][] = [];
 
   constructor(locationResolver: ILocationResolver) {
-    this._locationResolver = locationResolver;
+    this.locationResolver = locationResolver;
     this.initialize();
+  }
+
+  public get cells(): ICell[][] {
+    return this._cells;
   }
 
   public setValue(index: IIndex, value: number | null): boolean {
     if (value != null && !this.validate(index, value)) return false;
 
-    const previousValue = this.cells[index.r][index.c].value;
-    this.cells[index.r][index.c].value = value;
-    this.refreshPossibleValueFor(index, value, previousValue);
+    const cell = this._cells[index.r][index.c];
+    const previousValue = cell.value;
+    cell.value = value;
+    this.refreshPossibleValue(index, value, previousValue);
     return true;
   }
 
@@ -41,55 +77,31 @@ export class DefaultBoard implements IBoard {
     return cell.possibleValues.indexOf(value) >= 0;
   }
 
-  public getIndexes(value: number): IIndex[] {
-    const indexes: IIndex[] = [];
-    this.cells.forEach(row =>
-      row.forEach(c => {
-        if (c.value == value) {
-          indexes.push(c.index);
-        }
-      })
-    );
-    return indexes;
-  }
-
   private initialize() {
-    const possibleValues = ArrayUtils.range(this._locationResolver.size, 1);
+    const possibleValues = ArrayUtils.range(this.locationResolver.size, 1);
 
-    for (let r = 0; r < this._locationResolver.size; r++) {
-      this.cells[r] = [];
-      for (let c = 0; c < this._locationResolver.size; c++) {
-        this.cells[r][c] = {
-          id: "_" + r + c,
-          index: { c, r },
-          value: null,
-          possibleValues: [...possibleValues]
-        };
+    for (let r = 0; r < this.locationResolver.size; r++) {
+      this._cells[r] = [];
+      for (let c = 0; c < this.locationResolver.size; c++) {
+        this._cells[r][c] = new Cell({ c, r }, [...possibleValues]);
       }
     }
   }
 
-  private refreshPossibleValueFor(
+  private refreshPossibleValue(
     index: IIndex,
-    valueToRemove: number | null,
-    valueToAdd: number | null
+    newValue: number | null,
+    oldValue: number | null
   ) {
-    const indexesToRefresh = this._locationResolver.getAllIndexes(index);
+    const indexesToRefresh = this.locationResolver.getAllIndexes(index);
     indexesToRefresh.forEach(ind => {
-      const values = this.cells[ind.r][ind.c].possibleValues;
-      if (valueToRemove != null) {
-        const valueIndex = values.indexOf(valueToRemove);
-        if (valueIndex >= 0) {
-          values.splice(valueIndex, 1);
-        }
+      const cell = this._cells[ind.r][ind.c];
+      if (oldValue != null) {
+        cell.updatePossibleValue(oldValue, false);
       }
-      if (valueToAdd != null) {
-        const valueIndex = values.indexOf(valueToAdd);
-        if (valueIndex < 0) {
-          values.push(valueToAdd);
-        }
+      if (newValue != null) {
+        cell.updatePossibleValue(newValue, true);
       }
-      values.sort();
     });
   }
 }
